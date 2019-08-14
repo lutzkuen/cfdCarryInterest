@@ -56,7 +56,7 @@ class PortfolioFragment : LifecycleOwner, Fragment() {
                 val readyObserver = Observer<String> { _ ->
                     view.adapter!!.notifyDataSetChanged()
                 }
-                RatesContent.isready.observe(fragment, readyObserver)
+                PortfolioContent.isready.observe(fragment, readyObserver)
                 val preferences = PreferenceManager.getDefaultSharedPreferences(fragment.context)
                 PortfolioContent.getPortfolio(preferences)
             }

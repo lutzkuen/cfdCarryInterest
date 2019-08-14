@@ -57,6 +57,11 @@
                 app:title="@string/units_title"
                 app:defaultValue="1000"
                 app:useSimpleSummaryProvider="true"/>
+        <EditTextPreference
+                app:key="allowed_ins"
+                app:title="@string/allowed_ins_title"
+                app:defaultValue="NATGAS/USD;AUD/CHF;SOYBN/USD;BCO/USD;WTICO/USD;CORN/USD;SUGAR/USD;TWIX/USD;FR40/EUR;EU50/EUR;WHEAT/USD;DE10YB/EUR;IN50/USD;CN50/USD;USB30Y/USD;AU200/AUD;UK100/GBP;UK10YB/GBP"
+                app:useSimpleSummaryProvider="true"/>
     </PreferenceCategory>
 
 

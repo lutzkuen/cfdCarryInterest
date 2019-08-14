@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData
 import com.beust.klaxon.Klaxon
 import com.beust.klaxon.KlaxonException
 import com.example.interestcalculator.PortfolioListItem
+import com.example.interestcalculator.R
 import okhttp3.*
 import java.io.IOException
 import java.util.ArrayList
@@ -44,7 +45,6 @@ object PortfolioContent {
     private val lock = ReentrantLock()
 
     init {
-        println("Init as not ready")
         isready.value = "not"
     }
 
@@ -61,6 +61,7 @@ object PortfolioContent {
         val accessToken: String? = preferences.getString("access_token", "")
         val accountId: String? = preferences.getString("account_id", "")
         val host: String? = preferences.getString("host", "")
+        val duration: String? = preferences.getString("duration", "24")
         // val port: String? = preferences!!.getString("port", "443")
         val urlString = "https://$host/v3/accounts/$accountId/openPositions"
         val request = Request.Builder()
@@ -68,49 +69,46 @@ object PortfolioContent {
             .addHeader("Content-Type", "application/json")
             .addHeader("Authorization", "Bearer ${accessToken}")
             .build()
-        println("---------------------------CALL IN QUEUE-----------------")
-        println("Account ID: ${accountId}")
+
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {}
             override fun onResponse(call: Call, response: Response)  {
-                val response_string = response.body()!!.string()
-                println("---------------------------------CALL RESPONDED-------------------------")
-                println(response_string)
+                val responseString = response.body()!!.string()
                 try {
-                    positions = Klaxon().parse<PositionResponse>(response_string)
+                    positions = Klaxon().parse<PositionResponse>(responseString)
                 } catch (e: KlaxonException) {
                     println(e)
                     return
                 }
-                val ordered_list = ArrayList<PortfolioListItem>()
+                val orderedList = ArrayList<PortfolioListItem>()
                 var totalInterest: Float = 0.toFloat()
-                var totalUnits: Int = 0
+                var totalUnits = 0
                 for (posi in positions!!.positions) {
-                    var newitem = PortfolioListItem()
-                    newitem.instrument = posi.instrument.replace("_", "/")
-                    newitem.units = posi.long.units.toInt() + posi.short.units.toInt()
-                    totalUnits += newitem.units
-                    if ( newitem.units > 0 ) {
-                        newitem.side = "long"
+                    val newItem = PortfolioListItem()
+                    newItem.instrument = posi.instrument.replace("_", "/")
+                    newItem.units = posi.long.units.toInt() + posi.short.units.toInt()
+                    totalUnits += newItem.units
+                    if ( newItem.units > 0 ) {
+                        newItem.side = "long"
                     } else {
-                        newitem.side = "short"
+                        newItem.side = "short"
                     }
                     // Make sure RatesContent is ready to go at this point
                     while (RatesContent.isready.value != "ready") {
                         Thread.sleep(100)
                     }
-                    newitem.interest = RatesContent.getInterest(posi.instrument.replace("_", "/"), newitem.units, 24.toFloat())
-                    totalInterest += newitem.interest
-                    ordered_list.add(newitem)
+                    newItem.interest = RatesContent.getInterest(posi.instrument.replace("_", "/"), newItem.units, duration!!.toFloat())
+                    totalInterest += newItem.interest
+                    orderedList.add(newItem)
                 }
-                ordered_list.sortByDescending { it.interest }
-                var summary = PortfolioListItem()
+                orderedList.sortByDescending { it.interest }
+                val summary = PortfolioListItem()
                 summary.instrument = "Total Interest"
                 summary.interest = totalInterest
                 summary.side = ""
                 summary.units = totalUnits
-                ordered_list.add(summary)
-                for (position in ordered_list) {
+                orderedList.add(summary)
+                for (position in orderedList) {
                     addItem(position)
                 }
                 isready.postValue("ready")
@@ -124,21 +122,5 @@ object PortfolioContent {
             ITEMS.add(item)
             ITEM_MAP[item.instrument] = item
         }
-    }
-
-    private fun makeDetails(position: Int): String {
-        val builder = StringBuilder()
-        builder.append("Details about Item: ").append(position)
-        for (i in 0..position - 1) {
-            builder.append("\nMore details information here.")
-        }
-        return builder.toString()
-    }
-
-    /**
-     * A dummy item representing a piece of content.
-     */
-    data class DummyItem(val id: String, val content: String, val details: String) {
-        override fun toString(): String = content
     }
 }

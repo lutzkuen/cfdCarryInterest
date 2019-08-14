@@ -11,6 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
+import androidx.preference.PreferenceManager
 import com.example.interestcalculator.content.RatesContent
 
 
@@ -62,7 +63,8 @@ class ratesFragment : LifecycleOwner, Fragment() {
                     view.adapter!!.notifyDataSetChanged()
                 }
                 RatesContent.isready.observe(fragment, readyObserver)
-                RatesContent.refresh()
+                val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+                RatesContent.refresh(preferences)
             }
         }
         return view
@@ -70,7 +72,8 @@ class ratesFragment : LifecycleOwner, Fragment() {
 
     override fun onResume() {
         super.onResume()
-        RatesContent.refresh()
+        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        RatesContent.refresh(preferences)
     }
 
     override fun onAttach(context: Context) {

@@ -1,5 +1,6 @@
 package com.example.interestcalculator
 
+import android.graphics.Color
 import androidx.recyclerview.widget.RecyclerView
 import android.view.LayoutInflater
 import android.view.View
@@ -45,14 +46,15 @@ class PortfolioRecyclerViewAdapter(
     }
 
     private fun inflate_view(holder: ViewHolder, item: PortfolioListItem) {
-        holder.mIdView.text = item.instrument.padEnd(10)
         if (item.instrument == "Total Interest" ) {
-            holder.mContentView.text = item.interest.toString()
+            holder.mIdView.text = "${item.instrument.padEnd(10)}                     ${item.interest.toString()}"
+            holder.mContentView.text = ""
         } else {
+            holder.mIdView.text = item.instrument.padEnd(10)
             holder.mContentView.text = """
             Side: ${item.side}
             Units: ${abs(item.units).toString()}
-            Interest: ${format("%.5f", abs(item.interest).toString())}
+            Interest: ${item.interest}
         """.trimIndent() }
     }
 

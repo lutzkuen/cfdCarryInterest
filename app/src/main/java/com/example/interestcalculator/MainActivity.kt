@@ -17,9 +17,9 @@ class MainActivity : ratesFragment.OnListFragmentInteractionListener,
         val viewPager: ViewPager = findViewById(R.id.view_pager)
         viewPager.adapter = sectionsPagerAdapter
         val tabs: TabLayout = findViewById(R.id.tabs)
-        tabs.addTab(tabs.newTab().setText("Rates"))
-        tabs.addTab(tabs.newTab().setText("Portfolio"))
-        tabs.addTab(tabs.newTab().setText("Settings"))
+        tabs.addTab(tabs.newTab().setText(R.string.rates_fragment))
+        tabs.addTab(tabs.newTab().setText(R.string.portfolio_fragment))
+        tabs.addTab(tabs.newTab().setText(R.string.title_activity_settings))
         tabs.setupWithViewPager(viewPager)
     }
     override fun onListFragmentInteraction(item: RatesListItem?) {

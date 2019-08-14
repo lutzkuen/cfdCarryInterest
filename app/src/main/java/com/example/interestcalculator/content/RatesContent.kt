@@ -1,11 +1,10 @@
 package com.example.interestcalculator.content
 
+import android.content.SharedPreferences
 import com.example.interestcalculator.RatesListItem
 import java.util.ArrayList
 import java.util.HashMap
 import androidx.lifecycle.MutableLiveData
-import androidx.recyclerview.widget.RecyclerView
-import com.example.interestcalculator.ratesFragment
 import okhttp3.*
 import java.io.IOException
 import java.lang.Math.abs
@@ -17,12 +16,12 @@ import java.util.concurrent.locks.ReentrantLock
  */
 object RatesContent {
 
-    val arrPairs = ArrayList<String>()
-    val arrRates = ArrayList<Float>()
-    val arrInterestCode = ArrayList<String>()
-    val arrInterestBorrow = ArrayList<Float>()
-    val arrInterestLend = ArrayList<Float>()
-    val arrAllowedIns = ArrayList<String>()
+    private val arrPairs = ArrayList<String>()
+    private val arrRates = ArrayList<Float>()
+    private val arrInterestCode = ArrayList<String>()
+    private val arrInterestBorrow = ArrayList<Float>()
+    private val arrInterestLend = ArrayList<Float>()
+    var arrAllowedIns: List<String>? = null
     val ITEMS: MutableList<RatesListItem> = ArrayList<RatesListItem>()
     val ITEM_MAP: MutableMap<String, RatesListItem> = HashMap()
     var isready: MutableLiveData<String> = MutableLiveData<String>()
@@ -33,11 +32,11 @@ object RatesContent {
         initArrays()
     }
 
-    fun refresh() {
+    fun refresh(preferences: SharedPreferences) {
         lock.lock()
         try {
             initArrays()
-            getArrays()
+            getArrays(preferences)
         } finally {
             lock.unlock()
         }
@@ -50,7 +49,6 @@ object RatesContent {
         arrInterestCode.clear()
         arrInterestBorrow.clear()
         arrInterestLend.clear()
-        arrAllowedIns.clear()
     }
 
     private fun parseLine(_line: String): List<String> {
@@ -61,33 +59,12 @@ object RatesContent {
         return instrumentArray
     }
 
-    private fun getArrays() {
+    private fun getArrays(preferences: SharedPreferences) {
         // Use next two lines for debugging in sequential mode
         // val policy = StrictMode.ThreadPolicy.Builder().permitAll().build()
         // StrictMode.setThreadPolicy(policy)
-
-        // TODO: Make the allowed INS more dynamic
-
-        arrAllowedIns.add("NATGAS/USD")
-        arrAllowedIns.add("AUD/CHF")
-        arrAllowedIns.add("SOYBN/USD")
-        arrAllowedIns.add("BCO/USD")
-        arrAllowedIns.add("WTICO/USD")
-        arrAllowedIns.add("CORN/USD")
-        arrAllowedIns.add("SUGAR/USD")
-        arrAllowedIns.add("TWIX/USD")
-        arrAllowedIns.add("FR40/EUR")
-        arrAllowedIns.add("EU50/EUR")
-        arrAllowedIns.add("WHEAT/USD")
-        arrAllowedIns.add("DE10YB/EUR")
-        arrAllowedIns.add("IN50/USD")
-        arrAllowedIns.add("CN50/USD")
-        arrAllowedIns.add("USB30Y/USD")
-        arrAllowedIns.add("AU200/AUD")
-        arrAllowedIns.add("UK100/GBP")
-        arrAllowedIns.add("UK10YB/GBP")
-
-        var urlString: String = "https://www1.oanda.com/tools/fxcalculators/fxmath.js"
+        val duration = preferences.getString("duration", "24")
+        val urlString = "https://www1.oanda.com/tools/fxcalculators/fxmath.js"
 
         val request = Request.Builder()
             .url(urlString)
@@ -95,9 +72,10 @@ object RatesContent {
 
         val callback = object : Callback {
             override fun onResponse(call: Call?, response: Response) {
+                arrAllowedIns = preferences.getString("allowed_ins", "")!!.split(";")
                 val responseData = response.body()?.string()
                 parseFxmath(responseData!!)
-                getRates()
+                getRates(duration!!.toFloat())
                 isready.postValue("ready")
             }
 
@@ -126,7 +104,11 @@ object RatesContent {
             if (part.indexOf("arrRates") > 0) {
                 val insArr = parseLine(part)
                 for (ins in insArr) {
-                    arrRates.add(ins.toFloat())
+                    try {
+                        arrRates.add(ins.toFloat())
+                    } finally {
+
+                    }
                 }
             }
             if (part.indexOf("arrInterestCode") > 0) {
@@ -164,7 +146,7 @@ object RatesContent {
             val ins = arrPairs[i_ins]
             if ((ins.indexOf(leading_currency) >= 0) and (ins.indexOf(accountCurrency) >= 0)) {
                 try {
-                    var price = getPrice(ins)
+                    val price = getPrice(ins)
                     if (ins.split("/")[0] == accountCurrency) {
                         return price
                     } else {
@@ -175,14 +157,14 @@ object RatesContent {
                 }
             }
         }
-        val eurusd = getPrice("EUR/USD")
+        val euroUSDollar = getPrice("EUR/USD")
         for (ins in arrPairs) {
             if ((ins.indexOf(leading_currency) >= 0) and (ins.indexOf("USD") >= 0)) {
                 val price = getPrice(ins)
                 if (ins.split("_")[0] == "USD") {
-                    return price / eurusd
+                    return price / euroUSDollar
                 } else {
-                    return 1.0.toFloat() / (price * eurusd)
+                    return 1.0.toFloat() / (price * euroUSDollar)
                 }
             }
         }
@@ -193,14 +175,14 @@ object RatesContent {
         lock.lock()
         var interest = 0.toFloat()
         try {
-            interest = _getInterest(instrument, units, duration)
+            interest = getInterestInternal(instrument, units, duration)
         } finally {
             lock.unlock()
             return  interest
         }
     }
 
-    private fun _getInterest(instrument: String, units: Int, duration: Float): Float {
+    private fun getInterestInternal(instrument: String, units: Int, duration: Float): Float {
         val components = instrument.split("/")
         val base = components[0]
         val quote = components[1]
@@ -222,11 +204,11 @@ object RatesContent {
 
         var interestTotal: Float
         if (units > 0) {
-            var base_int =
+            var baseInt =
                 abs(units) * (arrInterestBorrow[idxBase] / 100.0) * duration / (conversionBase * durationNormalization)
-            var quote_int =
+            var quoteInt =
                 abs(units) * price * (arrInterestLend[idxQuote] / 100.0) * duration / (conversionQuote * durationNormalization)
-            interestTotal = base_int.toFloat() - quote_int.toFloat()
+            interestTotal = baseInt.toFloat() - quoteInt.toFloat()
         } else {
             var base_int =
                 abs(units) * (arrInterestLend[idxBase] / 100.0) * duration * conversionBase / durationNormalization
@@ -237,16 +219,23 @@ object RatesContent {
         return interestTotal
     }
 
-    private fun getRates() {
+    private fun getRates(inputDuration: Float) {
         // now all the array should be in place to calculate the rates
         val units: Float = 1000.toFloat()
-        var prelimList = ArrayList<RatesListItem>()
-        val duration: Float = (24.0 / 8766.0).toFloat()
-        for (ins in arrAllowedIns) {
+        val prelimList = ArrayList<RatesListItem>()
+        val duration = inputDuration / 8766.toFloat()
+        for (ins in arrAllowedIns!!) {
             val components = ins.split("/")
+            if ( components.size < 2 ) {
+                println("Received weird instrument $ins")
+                continue
+            }
             val base = components[0]
             val quote = components[1]
             val idx = arrPairs.indexOf(ins)
+            if ( idx < 0 ) {
+                continue
+            }
             if (idx > arrRates.size) {
                 continue
             }
@@ -264,10 +253,10 @@ object RatesContent {
                 conversionQuote = price / conversionQuote
             }
             // long side
-            var base_int = units * (arrInterestBorrow[idxBase] / 100.0) * duration
-            var quote_int =
+            var baseInt = units * (arrInterestBorrow[idxBase] / 100.0) * duration
+            var quoteInt =
                 (units * conversionBase) * price * (arrInterestLend[idxQuote] / 100.0) * duration / conversionQuote
-            var interestTotal = base_int - quote_int
+            var interestTotal = baseInt - quoteInt
             if (interestTotal > 0) {
                 val long_item = RatesListItem()
                 long_item.instrument = ins
@@ -279,10 +268,10 @@ object RatesContent {
                 prelimList.add(long_item)
             }
             // short side
-            base_int = units * (arrInterestLend[idxBase] / 100.0) * duration
-            quote_int =
+            baseInt = units * (arrInterestLend[idxBase] / 100.0) * duration
+            quoteInt =
                 (units * conversionBase) * price * (arrInterestBorrow[idxQuote] / 100.0) * duration / conversionQuote
-            interestTotal = quote_int - base_int
+            interestTotal = quoteInt - baseInt
             if (interestTotal > 0) {
                 val short_item = RatesListItem()
                 short_item.instrument = ins
@@ -303,22 +292,13 @@ object RatesContent {
     private fun addItem(item: RatesListItem) {
         if (ITEMS.contains(item).not()) {
             try {
-                ITEMS.removeAll({ it.instrument == item.instrument })
+                ITEMS.removeAll { it.instrument == item.instrument }
+                ITEMS.add(item)
+                // ITEM_MAP.remove(item.instrument)
+                ITEM_MAP[item.instrument] = item
             } catch (e: IndexOutOfBoundsException) {
-                println("Adding new rates item")
+                println("Error while adding new rates item ${item.instrument}")
             }
-            ITEMS.add(item)
-            // ITEM_MAP.remove(item.instrument)
-            ITEM_MAP.put(item.instrument, item)
         }
-    }
-
-    private fun makeDetails(position: Int): String {
-        val builder = StringBuilder()
-        builder.append("Details about Item: ").append(position)
-        for (i in 0..position - 1) {
-            builder.append("\nMore details information here.")
-        }
-        return builder.toString()
     }
 }
