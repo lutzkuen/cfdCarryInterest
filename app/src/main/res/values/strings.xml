@@ -6,6 +6,12 @@
     <string name="title_activity_settings">Settings</string>
     <string name="allowed_ins_title">Instruments</string>
 
+    <string name="portfolio_item">
+        Side: %1$s
+        Units: %2$s
+        Interest: %3$s
+    </string>
+
     <!-- Preference Titles -->
     <string name="messages_header">Messages</string>
     <string name="account_header">Account</string>

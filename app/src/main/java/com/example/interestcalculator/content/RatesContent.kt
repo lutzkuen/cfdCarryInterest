@@ -210,11 +210,11 @@ object RatesContent {
                 abs(units) * price * (arrInterestLend[idxQuote] / 100.0) * duration / (conversionQuote * durationNormalization)
             interestTotal = baseInt.toFloat() - quoteInt.toFloat()
         } else {
-            var base_int =
+            var baseInt =
                 abs(units) * (arrInterestLend[idxBase] / 100.0) * duration * conversionBase / durationNormalization
-            var quote_int =
+            var quoteInt =
                 abs(units) * price * (arrInterestBorrow[idxQuote] / 100.0) * duration * conversionQuote / durationNormalization
-            interestTotal = quote_int.toFloat() - base_int.toFloat()
+            interestTotal = quoteInt.toFloat() - baseInt.toFloat()
         }
         return interestTotal
     }
