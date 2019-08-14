@@ -5,7 +5,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.recyclerview.widget.SortedList
 
 
 import com.example.interestcalculator.ratesFragment.OnListFragmentInteractionListener
@@ -13,10 +12,10 @@ import com.example.interestcalculator.ratesFragment.OnListFragmentInteractionLis
 import kotlinx.android.synthetic.main.fragment_rates.view.*
 import java.lang.String.format
 
-class MyratesRecyclerViewAdapter(
+class RatesRecyclerViewAdapter(
     private var mValues: MutableList<RatesListItem>,
     private val mListener: OnListFragmentInteractionListener?
-) : RecyclerView.Adapter<MyratesRecyclerViewAdapter.ViewHolder>() {
+) : RecyclerView.Adapter<RatesRecyclerViewAdapter.ViewHolder>() {
 
     private val mOnClickListener: View.OnClickListener
 

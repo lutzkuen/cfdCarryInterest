@@ -57,7 +57,7 @@ class ratesFragment : LifecycleOwner, Fragment() {
                     columnCount <= 1 -> LinearLayoutManager(context)
                     else -> GridLayoutManager(context, columnCount)
                 }
-                view.adapter = MyratesRecyclerViewAdapter(RatesContent.ITEMS, listener)
+                view.adapter = RatesRecyclerViewAdapter(RatesContent.ITEMS, listener)
                 val readyObserver = Observer<String> {_ ->
                     view.adapter!!.notifyDataSetChanged()
                 }

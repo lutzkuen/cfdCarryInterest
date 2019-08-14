@@ -14,7 +14,6 @@ import androidx.lifecycle.Observer
 import androidx.preference.PreferenceManager
 import com.example.interestcalculator.content.PortfolioContent
 import com.example.interestcalculator.content.RatesContent
-import com.example.interestcalculator.ratesFragment.Companion.ARG_COLUMN_COUNT
 
 /**
  * A fragment representing a list of Items.
@@ -53,7 +52,7 @@ class PortfolioFragment : LifecycleOwner, Fragment() {
                     columnCount <= 1 -> LinearLayoutManager(context)
                     else -> GridLayoutManager(context, columnCount)
                 }
-                view.adapter = MyportfolioRecyclerViewAdapter(PortfolioContent.ITEMS, listener)
+                view.adapter = PortfolioRecyclerViewAdapter(PortfolioContent.ITEMS, listener)
                 val readyObserver = Observer<String> { _ ->
                     view.adapter!!.notifyDataSetChanged()
                 }

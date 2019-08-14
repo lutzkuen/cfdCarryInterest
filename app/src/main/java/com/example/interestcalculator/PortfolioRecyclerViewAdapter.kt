@@ -13,10 +13,10 @@ import kotlinx.android.synthetic.main.fragment_portfolio.view.*
 import java.lang.Math.abs
 import java.lang.String.format
 
-class MyportfolioRecyclerViewAdapter(
+class PortfolioRecyclerViewAdapter(
     private val mValues: MutableList<PortfolioListItem>,
     private val mListener: OnListFragmentInteractionListener?
-) : RecyclerView.Adapter<MyportfolioRecyclerViewAdapter.ViewHolder>() {
+) : RecyclerView.Adapter<PortfolioRecyclerViewAdapter.ViewHolder>() {
 
     private val mOnClickListener: View.OnClickListener
 
@@ -51,8 +51,8 @@ class MyportfolioRecyclerViewAdapter(
         } else {
             holder.mContentView.text = """
             Side: ${item.side}
-            Units: ${abs(item.units)}
-            Interest: ${format("%.5f", abs(item.interest))}
+            Units: ${abs(item.units).toString()}
+            Interest: ${format("%.5f", abs(item.interest).toString())}
         """.trimIndent() }
     }
 
