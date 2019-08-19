@@ -50,8 +50,6 @@ class PortfolioRecyclerViewAdapter(
         if (item.instrument == "Total Interest" ) {
             holder.mIdView.text = item.instrument.padEnd(10)
             holder.mContentView.text = item.interest.toString()
-            holder.mIdView.gravity = Gravity.TOP
-            holder.mContentView.gravity = Gravity.TOP
         } else {
             holder.mIdView.text = item.instrument.padEnd(10)
             holder.mContentView.text = """

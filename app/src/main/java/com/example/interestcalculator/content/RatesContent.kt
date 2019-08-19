@@ -211,10 +211,13 @@ object RatesContent {
             interestTotal = baseInt.toFloat() - quoteInt.toFloat()
         } else {
             var baseInt =
-                abs(units) * (arrInterestLend[idxBase] / 100.0) * duration * conversionBase / durationNormalization
+                abs(units) * (arrInterestLend[idxBase] / 100.0) * duration / (conversionBase * durationNormalization)
             var quoteInt =
-                abs(units) * price * (arrInterestBorrow[idxQuote] / 100.0) * duration * conversionQuote / durationNormalization
+                abs(units) * price * (arrInterestBorrow[idxQuote] / 100.0) * duration / (conversionQuote * durationNormalization)
             interestTotal = quoteInt.toFloat() - baseInt.toFloat()
+            /* if ( instrument == "WTICO/USD" ) {
+                println("$units ${arrInterestLend[idxBase]} $duration $conversionBase $conversionQuote $baseInt $quoteInt $interestTotal")
+            } */
         }
         return interestTotal
     }
