@@ -17,20 +17,26 @@ import java.util.concurrent.locks.ReentrantLock
  * Android template wizards.
  */
 
-class PositionSide(var pl: String,
-                   var resettablePL: String,
-                   var units: String,
-                   var unrealizedPL: String)
+class PositionSide(
+    var pl: String,
+    var resettablePL: String,
+    var units: String,
+    var unrealizedPL: String
+)
 
-class Position(var instrument: String,
-               var long: PositionSide,
-               var pl: String,
-               var resettablePL: String,
-               var short: PositionSide,
-               var unrealizedPL: String)
+class Position(
+    var instrument: String,
+    var long: PositionSide,
+    var pl: String,
+    var resettablePL: String,
+    var short: PositionSide,
+    var unrealizedPL: String
+)
 
-class PositionResponse(var lastTransactionID: String,
-                       var positions: List<Position>)
+class PositionResponse(
+    var lastTransactionID: String,
+    var positions: List<Position>
+)
 
 object PortfolioContent {
 
@@ -72,7 +78,7 @@ object PortfolioContent {
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {}
-            override fun onResponse(call: Call, response: Response)  {
+            override fun onResponse(call: Call, response: Response) {
                 val responseString = response.body()!!.string()
                 try {
                     positions = Klaxon().parse<PositionResponse>(responseString)
@@ -88,7 +94,7 @@ object PortfolioContent {
                     newItem.instrument = posi.instrument.replace("_", "/")
                     newItem.units = posi.long.units.toInt() + posi.short.units.toInt()
                     totalUnits += newItem.units
-                    if ( newItem.units > 0 ) {
+                    if (newItem.units > 0) {
                         newItem.side = "long"
                     } else {
                         newItem.side = "short"
@@ -97,20 +103,37 @@ object PortfolioContent {
                     while (RatesContent.isready.value != "ready") {
                         Thread.sleep(100)
                     }
-                    newItem.interest = RatesContent.getInterest(posi.instrument.replace("_", "/"), newItem.units, duration!!.toFloat())
+                    newItem.interest =
+                        RatesContent.getInterest(posi.instrument.replace("_", "/"), newItem.units, duration!!.toFloat())
                     totalInterest += newItem.interest
                     orderedList.add(newItem)
                 }
                 orderedList.sortByDescending { it.interest }
+                for (i in 0..(orderedList.size-1)) {
+                    val position = orderedList[i]
+                    for (i_before in 0..i) {
+                        val pos_before = orderedList[i_before]
+                        if (RatesContent.ITEM_MAP[pos_before.instrument]!!.interest < RatesContent.ITEM_MAP[position.instrument]!!.interest) {
+                            position.recommend = "Increase Position"
+                        }
+                    }
+                    for (i_after in i..(orderedList.size-1)) {
+                        val pos_after = orderedList[i_after]
+                        if (RatesContent.ITEM_MAP[pos_after.instrument]!!.interest > RatesContent.ITEM_MAP[position.instrument]!!.interest) {
+                            position.recommend = "Decrease Position"
+                        }
+                    }
+                    if ( position.interest < 0 ) {
+                        position.recommend = "Close Position"
+                    }
+                    addItem(position)
+                }
                 val summary = PortfolioListItem()
                 summary.instrument = "Total Interest"
                 summary.interest = totalInterest
                 summary.side = ""
                 summary.units = totalUnits
-                orderedList.add(summary)
-                for (position in orderedList) {
-                    addItem(position)
-                }
+                addItem(summary)
                 isready.postValue("ready")
             }
         })

@@ -56,6 +56,7 @@ class PortfolioRecyclerViewAdapter(
             Side: ${item.side}
             Units: ${abs(item.units)}
             Interest: ${item.interest}
+            ${item.recommend}
         """.trimIndent() }
     }
 
