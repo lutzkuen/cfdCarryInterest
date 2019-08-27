@@ -13,4 +13,9 @@
         <item>api-fxpractice.oanda.com</item>
         <item>api-fxtrade.oanda.com</item>
     </string-array>
+    <string-array name="side_values">
+        <item>both</item>
+        <item>long</item>
+        <item>short</item>
+    </string-array>
 </resources>

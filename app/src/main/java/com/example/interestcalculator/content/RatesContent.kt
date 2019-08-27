@@ -1,10 +1,13 @@
 package com.example.interestcalculator.content
 
 import android.content.SharedPreferences
+import android.service.autofill.Validators.not
 import com.example.interestcalculator.RatesListItem
 import java.util.ArrayList
 import java.util.HashMap
 import androidx.lifecycle.MutableLiveData
+import com.beust.klaxon.Klaxon
+import com.beust.klaxon.KlaxonException
 import okhttp3.*
 import java.io.IOException
 import java.lang.Math.abs
@@ -14,15 +17,45 @@ import java.util.concurrent.locks.ReentrantLock
  * Helper class for providing sample content for user interfaces created by
  * Android template wizards.
  */
+
+class InstrumentTag(
+    var type: String?,
+    var name: String?
+)
+
+class Instrument(
+    var displayName: String?,
+    var displayPrecision: String?,
+    var marginRate: String?,
+    var maximumOrderUnits: String?,
+    var maximumPositionSize: String?,
+    var maximumTrailingStopDistance: String?,
+    var minimumTradeSize: String?,
+    var minimumTrailingStopDistance: String?,
+    var name: String?,
+    var pipLocation: String?,
+    var tradeUnitsPrecision: String?,
+    var type: String?,
+    var tags: List<InstrumentTag>?
+)
+
+class InstrumentsResponse(
+    var lastTransactionID: String?,
+    var instruments: List<Instrument>?
+)
+
+
 object RatesContent {
 
     private val arrPairs = ArrayList<String>()
     private val arrRates = ArrayList<Float>()
     private val arrInterestCode = ArrayList<String>()
     private val arrInterestBorrow = ArrayList<Float>()
+    private var allowedInstruments: InstrumentsResponse? = null
     private val arrInterestLend = ArrayList<Float>()
-    var arrAllowedIns: List<String>? = null
+    var instrumentFilter: String? = null
     val ITEMS: MutableList<RatesListItem> = ArrayList<RatesListItem>()
+    val FILTERED_ITEMS: MutableList<RatesListItem> = ArrayList<RatesListItem>()
     val ITEM_MAP: MutableMap<String, RatesListItem> = HashMap()
     var isready: MutableLiveData<String> = MutableLiveData<String>()
     val durationNormalization = 24.0 * 365.25
@@ -38,7 +71,7 @@ object RatesContent {
             initArrays()
             getArrays(preferences)
         } finally {
-            lock.unlock()
+
         }
     }
 
@@ -65,18 +98,16 @@ object RatesContent {
         // StrictMode.setThreadPolicy(policy)
         val duration = preferences.getString("duration", "24")
         val urlString = "https://www1.oanda.com/tools/fxcalculators/fxmath.js"
-
         val request = Request.Builder()
             .url(urlString)
             .build()
 
         val callback = object : Callback {
             override fun onResponse(call: Call?, response: Response) {
-                arrAllowedIns = preferences.getString("allowed_ins", "")!!.split(";")
                 val responseData = response.body()?.string()
                 parseFxmath(responseData!!)
                 getRates(duration!!.toFloat())
-                isready.postValue("ready")
+                filter(preferences)
             }
 
             override fun onFailure(call: Call?, e: IOException?) {
@@ -106,7 +137,10 @@ object RatesContent {
                 for (ins in insArr) {
                     try {
                         arrRates.add(ins.toFloat())
-                    } finally {
+                    } catch (e: ArrayIndexOutOfBoundsException) {
+                        println(e)
+                    }
+                    finally {
 
                     }
                 }
@@ -227,7 +261,8 @@ object RatesContent {
         val units: Float = 1000.toFloat()
         val prelimList = ArrayList<RatesListItem>()
         val duration = inputDuration / 8766.toFloat()
-        for (ins in arrAllowedIns!!) {
+        for (i_ins in 0..(arrPairs.size-1)) {
+            val ins = arrPairs[i_ins]
             val components = ins.split("/")
             if ( components.size < 2 ) {
                 println("Received weird instrument $ins")
@@ -239,7 +274,13 @@ object RatesContent {
             if ( idx < 0 ) {
                 continue
             }
-            if (idx > arrRates.size) {
+            if (idx > arrRates.size-1) {
+                continue
+            }
+            if ( arrRates[idx] == null ) {
+                continue
+            }
+            if ( idx == null ) {
                 continue
             }
             val price = arrRates[idx]
@@ -290,6 +331,71 @@ object RatesContent {
         for (it in prelimList) {
             addItem(it)
         }
+    }
+
+    fun filter(preferences: SharedPreferences) {
+        val client = OkHttpClient()
+        val accessToken: String? = preferences.getString("access_token", "")
+        val accountId: String? = preferences.getString("account_id", "")
+        val host: String? = preferences.getString("host", "")
+        val urlString = "https://$host/v3/accounts/$accountId/instruments"
+        val request = Request.Builder()
+            .url(urlString)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Authorization", "Bearer ${accessToken}")
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {}
+            override fun onResponse(call: Call, response: Response) {
+                val responseString = response.body()!!.string()
+                try {
+                    allowedInstruments = Klaxon().parse<InstrumentsResponse>(responseString)
+                } catch (e: KlaxonException) {
+                    println(responseString)
+                    println(e)
+                    return
+                }
+                val instrumentFilter = preferences?.getString("allowed_ins", "")
+                val side = preferences?.getString("side", "")
+                FILTERED_ITEMS.clear()
+                var is_allowed = true
+                for (i_ins in 0..(ITEMS.size - 1)) {
+                    val item = ITEMS[i_ins]
+                    if ( allowedInstruments != null ) {
+                        is_allowed = false
+                        for ( ins in allowedInstruments!!.instruments!! ) {
+                            if ( ins.displayName == item.instrument ) {
+                                is_allowed = true
+                                break
+                            }
+                        }
+                    }
+                    if ( is_allowed != true ) {
+                        continue
+                    }
+                    if (side == "long") {
+                        if (item.side != "long") {
+                            continue
+                        }
+                    }
+                    if (side == "short") {
+                        if (item.side != "short") {
+                            continue
+                        }
+                    }
+                    if (instrumentFilter == null) {
+                        FILTERED_ITEMS.add(item)
+                        continue
+                    }
+                    if (item.instrument.contains(instrumentFilter!!)) {
+                        FILTERED_ITEMS.add(item)
+                    }
+                }
+                lock.unlock()
+                isready.postValue("ready")
+            }
+        })
     }
 
     private fun addItem(item: RatesListItem) {

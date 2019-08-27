@@ -83,6 +83,7 @@ object PortfolioContent {
                 try {
                     positions = Klaxon().parse<PositionResponse>(responseString)
                 } catch (e: KlaxonException) {
+                    println(responseString)
                     println(e)
                     return
                 }

@@ -1,5 +1,6 @@
 package com.example.interestcalculator
 
+import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.drawable.Drawable
 import androidx.recyclerview.widget.RecyclerView
@@ -7,6 +8,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.preference.PreferenceManager
+import com.example.interestcalculator.content.RatesContent
 
 
 import com.example.interestcalculator.ratesFragment.OnListFragmentInteractionListener
@@ -16,7 +19,8 @@ import java.lang.String.format
 
 class RatesRecyclerViewAdapter(
     private var mValues: MutableList<RatesListItem>,
-    private val mListener: OnListFragmentInteractionListener?
+    private val mListener: OnListFragmentInteractionListener?,
+    val preferences: SharedPreferences?
 ) : RecyclerView.Adapter<RatesRecyclerViewAdapter.ViewHolder>() {
 
     private val mOnClickListener: View.OnClickListener
@@ -53,6 +57,14 @@ class RatesRecyclerViewAdapter(
             tag = item
             setOnClickListener(mOnClickListener)
         }
+        /* if ( instrumentFilter != null ) {
+            if ( item.instrument.contains(instrumentFilter) ) {
+                holder.mView.visibility = View.VISIBLE
+            } else {
+                holder.mIdView.text = ""
+                holder.mContentView.text = ""
+            }
+        } */
     }
 
     override fun getItemCount(): Int = mValues.size

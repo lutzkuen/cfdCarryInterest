@@ -58,12 +58,12 @@ class ratesFragment : LifecycleOwner, Fragment() {
                     columnCount <= 1 -> LinearLayoutManager(context)
                     else -> GridLayoutManager(context, columnCount)
                 }
-                view.adapter = RatesRecyclerViewAdapter(RatesContent.ITEMS, listener)
+                val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+                view.adapter = RatesRecyclerViewAdapter(RatesContent.FILTERED_ITEMS, listener, preferences)
                 val readyObserver = Observer<String> {_ ->
                     view.adapter!!.notifyDataSetChanged()
                 }
                 RatesContent.isready.observe(fragment, readyObserver)
-                val preferences = PreferenceManager.getDefaultSharedPreferences(context)
                 RatesContent.refresh(preferences)
             }
         }

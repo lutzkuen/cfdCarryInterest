@@ -4,7 +4,8 @@
     <string name="rates_fragment">Rates</string>
     <string name="portfolio_fragment">Portfolio</string>
     <string name="title_activity_settings">Settings</string>
-    <string name="allowed_ins_title">Instruments</string>
+    <string name="allowed_ins_title">Instruments Filter</string>
+    <string name="sides_title">Side Filter</string>
 
     <string name="portfolio_item">
         Side: %1$s
