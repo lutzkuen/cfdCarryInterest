@@ -42,6 +42,9 @@ class RatesRecyclerViewAdapter(
 
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        if ( position >= mValues.size ) {
+            return
+        }
         val item = mValues[position]
         val digits = 2
         holder.mIdView.text = item.instrument.padEnd(10)

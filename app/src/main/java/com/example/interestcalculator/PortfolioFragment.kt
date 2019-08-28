@@ -12,7 +12,6 @@ import android.view.ViewGroup
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
 import androidx.preference.PreferenceManager
-import com.example.interestcalculator.content.PortfolioContent
 import com.example.interestcalculator.content.RatesContent
 
 /**
@@ -53,13 +52,13 @@ class PortfolioFragment : LifecycleOwner, Fragment() {
                     columnCount <= 1 -> LinearLayoutManager(context)
                     else -> GridLayoutManager(context, columnCount)
                 }
-                view.adapter = PortfolioRecyclerViewAdapter(PortfolioContent.ITEMS, listener)
+                view.adapter = PortfolioRecyclerViewAdapter(RatesContent.PORTFOLIO_ITEMS, listener)
                 val readyObserver = Observer<String> { _ ->
                     view.adapter!!.notifyDataSetChanged()
                 }
-                PortfolioContent.isready.observe(fragment, readyObserver)
+                RatesContent.portfolioready.observe(fragment, readyObserver)
                 val preferences = PreferenceManager.getDefaultSharedPreferences(fragment.context)
-                PortfolioContent.getPortfolio(preferences)
+                RatesContent.refresh(preferences)
             }
         }
         return view
@@ -68,7 +67,7 @@ class PortfolioFragment : LifecycleOwner, Fragment() {
     override fun onResume() {
         super.onResume()
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-        PortfolioContent.getPortfolio(preferences)
+        RatesContent.refresh(preferences)
     }
 
     override fun onAttach(context: Context) {

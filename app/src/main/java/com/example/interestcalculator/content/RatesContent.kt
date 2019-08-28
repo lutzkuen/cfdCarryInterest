@@ -1,13 +1,13 @@
 package com.example.interestcalculator.content
 
 import android.content.SharedPreferences
-import android.service.autofill.Validators.not
 import com.example.interestcalculator.RatesListItem
 import java.util.ArrayList
 import java.util.HashMap
 import androidx.lifecycle.MutableLiveData
 import com.beust.klaxon.Klaxon
 import com.beust.klaxon.KlaxonException
+import com.example.interestcalculator.PortfolioListItem
 import okhttp3.*
 import java.io.IOException
 import java.lang.Math.abs
@@ -25,7 +25,7 @@ class InstrumentTag(
 
 class Instrument(
     var displayName: String?,
-    var displayPrecision: String?,
+    var displayPrecision: Int?,
     var marginRate: String?,
     var maximumOrderUnits: String?,
     var maximumPositionSize: String?,
@@ -33,15 +33,37 @@ class Instrument(
     var minimumTradeSize: String?,
     var minimumTrailingStopDistance: String?,
     var name: String?,
-    var pipLocation: String?,
-    var tradeUnitsPrecision: String?,
-    var type: String?,
-    var tags: List<InstrumentTag>?
+    var pipLocation: Int?,
+    var tradeUnitsPrecision: Int?,
+    var type: String?
+    // var tags: List<InstrumentTag>?
 )
 
 class InstrumentsResponse(
     var lastTransactionID: String?,
     var instruments: List<Instrument>?
+)
+
+
+class PositionSide(
+    var pl: String,
+    var resettablePL: String,
+    var units: String,
+    var unrealizedPL: String
+)
+
+class Position(
+    var instrument: String,
+    var long: PositionSide,
+    var pl: String,
+    var resettablePL: String,
+    var short: PositionSide,
+    var unrealizedPL: String
+)
+
+class PositionResponse(
+    var lastTransactionID: String,
+    var positions: List<Position>
 )
 
 
@@ -51,14 +73,18 @@ object RatesContent {
     private val arrRates = ArrayList<Float>()
     private val arrInterestCode = ArrayList<String>()
     private val arrInterestBorrow = ArrayList<Float>()
+    private val client = OkHttpClient()
     private var allowedInstruments: InstrumentsResponse? = null
+    private var positions: PositionResponse? = null
     private val arrInterestLend = ArrayList<Float>()
-    var instrumentFilter: String? = null
     val ITEMS: MutableList<RatesListItem> = ArrayList<RatesListItem>()
     val FILTERED_ITEMS: MutableList<RatesListItem> = ArrayList<RatesListItem>()
+    val PORTFOLIO_ITEMS: MutableList<PortfolioListItem> = ArrayList()
+    val PORTFOLIO_ITEM_MAP: MutableMap<String, PortfolioListItem> = HashMap()
     val ITEM_MAP: MutableMap<String, RatesListItem> = HashMap()
-    var isready: MutableLiveData<String> = MutableLiveData<String>()
-    val durationNormalization = 24.0 * 365.25
+    var ratesready: MutableLiveData<String> = MutableLiveData<String>()
+    var portfolioready: MutableLiveData<String> = MutableLiveData<String>()
+    private const val durationNormalization = 24.0 * 365.25
     private val lock = ReentrantLock()
 
     init {
@@ -68,15 +94,90 @@ object RatesContent {
     fun refresh(preferences: SharedPreferences) {
         lock.lock()
         try {
+            ratesready.value = "not"
+            portfolioready.value = "not"
             initArrays()
             getArrays(preferences)
         } finally {
-
+            lock.unlock()
         }
     }
 
+    private fun privatePortfolio(preferences: SharedPreferences) {
+        val accessToken: String? = preferences.getString("access_token", "")
+        val accountId: String? = preferences.getString("account_id", "")
+        val host: String? = preferences.getString("host", "")
+        val duration: String? = preferences.getString("duration", "24")
+        // val port: String? = preferences!!.getString("port", "443")
+        val urlString = "https://$host/v3/accounts/$accountId/openPositions"
+        val request = Request.Builder()
+            .url(urlString)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Authorization", "Bearer ${accessToken}")
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {}
+            override fun onResponse(call: Call, response: Response) {
+                val responseString = response.body()!!.string()
+                try {
+                    positions = Klaxon().parse<PositionResponse>(responseString)
+                } catch (e: KlaxonException) {
+                    println(responseString)
+                    println(e)
+                    portfolioready.postValue("ready")
+                    return
+                }
+                val orderedList = ArrayList<PortfolioListItem>()
+                var totalInterest: Float = 0.toFloat()
+                var totalUnits = 0
+                for (posi in positions!!.positions) {
+                    val newItem = PortfolioListItem()
+                    newItem.instrument = posi.instrument.replace("_", "/")
+                    newItem.units = posi.long.units.toInt() + posi.short.units.toInt()
+                    totalUnits += newItem.units
+                    if (newItem.units > 0) {
+                        newItem.side = "long"
+                    } else {
+                        newItem.side = "short"
+                    }
+                    newItem.interest =
+                        getInterest(posi.instrument.replace("_", "/"), newItem.units, duration!!.toFloat())
+                    totalInterest += newItem.interest
+                    orderedList.add(newItem)
+                }
+                orderedList.sortByDescending { it.interest }
+                for (i in 0 until orderedList.size) {
+                    val position = orderedList[i]
+                    for (i_before in 0..i) {
+                        val posBefore = orderedList[i_before]
+                        if (ITEM_MAP[posBefore.instrument]!!.interest < RatesContent.ITEM_MAP[position.instrument]!!.interest) {
+                            position.recommend = "Increase Position"
+                        }
+                    }
+                    for (i_after in i until orderedList.size) {
+                        val posAfter = orderedList[i_after]
+                        if (ITEM_MAP[posAfter.instrument]!!.interest > RatesContent.ITEM_MAP[position.instrument]!!.interest) {
+                            position.recommend = "Decrease Position"
+                        }
+                    }
+                    if (position.interest < 0) {
+                        position.recommend = "Close Position"
+                    }
+                    addPortfolioItem(position)
+                }
+                val summary = PortfolioListItem()
+                summary.instrument = "Total Interest"
+                summary.interest = totalInterest
+                summary.side = ""
+                summary.units = totalUnits
+                addPortfolioItem(summary)
+                portfolioready.postValue("ready")
+            }
+        })
+    }
+
     private fun initArrays() {
-        isready.postValue("not")
         arrPairs.clear()
         arrRates.clear()
         arrInterestCode.clear()
@@ -139,8 +240,7 @@ object RatesContent {
                         arrRates.add(ins.toFloat())
                     } catch (e: ArrayIndexOutOfBoundsException) {
                         println(e)
-                    }
-                    finally {
+                    } finally {
 
                     }
                 }
@@ -212,7 +312,7 @@ object RatesContent {
             interest = getInterestInternal(instrument, units, duration)
         } finally {
             lock.unlock()
-            return  interest
+            return interest
         }
     }
 
@@ -236,17 +336,17 @@ object RatesContent {
             conversionQuote = price / conversionQuote
         }
 
-        var interestTotal: Float
+        val interestTotal: Float
         if (units > 0) {
-            var baseInt =
+            val baseInt =
                 abs(units) * (arrInterestBorrow[idxBase] / 100.0) * duration / (conversionBase * durationNormalization)
-            var quoteInt =
+            val quoteInt =
                 abs(units) * price * (arrInterestLend[idxQuote] / 100.0) * duration / (conversionQuote * durationNormalization)
             interestTotal = baseInt.toFloat() - quoteInt.toFloat()
         } else {
-            var baseInt =
+            val baseInt =
                 abs(units) * (arrInterestLend[idxBase] / 100.0) * duration / (conversionBase * durationNormalization)
-            var quoteInt =
+            val quoteInt =
                 abs(units) * price * (arrInterestBorrow[idxQuote] / 100.0) * duration / (conversionQuote * durationNormalization)
             interestTotal = quoteInt.toFloat() - baseInt.toFloat()
             /* if ( instrument == "WTICO/USD" ) {
@@ -261,26 +361,29 @@ object RatesContent {
         val units: Float = 1000.toFloat()
         val prelimList = ArrayList<RatesListItem>()
         val duration = inputDuration / 8766.toFloat()
-        for (i_ins in 0..(arrPairs.size-1)) {
+        for (i_ins in 0 until arrPairs.size) {
+            if ( arrPairs[i_ins] == null ) {
+                continue
+            }
             val ins = arrPairs[i_ins]
             val components = ins.split("/")
-            if ( components.size < 2 ) {
+            if (components.size < 2) {
                 println("Received weird instrument $ins")
                 continue
             }
             val base = components[0]
             val quote = components[1]
             val idx = arrPairs.indexOf(ins)
-            if ( idx < 0 ) {
+            if (idx < 0) {
                 continue
             }
-            if (idx > arrRates.size-1) {
+            if (idx > arrRates.size - 1) {
                 continue
             }
-            if ( arrRates[idx] == null ) {
+            if (idx == null) {
                 continue
             }
-            if ( idx == null ) {
+            if (arrRates[idx] == null) {
                 continue
             }
             val price = arrRates[idx]
@@ -302,14 +405,14 @@ object RatesContent {
                 (units * conversionBase) * price * (arrInterestLend[idxQuote] / 100.0) * duration / conversionQuote
             var interestTotal = baseInt - quoteInt
             if (interestTotal > 0) {
-                val long_item = RatesListItem()
-                long_item.instrument = ins
-                long_item.interest = interestTotal.toFloat()
-                long_item.side = "long"
-                long_item.units = units * conversionBase
-                long_item.price = price
+                val longItem = RatesListItem()
+                longItem.instrument = ins
+                longItem.interest = interestTotal.toFloat()
+                longItem.side = "long"
+                longItem.units = units * conversionBase
+                longItem.price = price
                 // addItem(long_item)
-                prelimList.add(long_item)
+                prelimList.add(longItem)
             }
             // short side
             baseInt = units * (arrInterestLend[idxBase] / 100.0) * duration
@@ -352,26 +455,32 @@ object RatesContent {
                 try {
                     allowedInstruments = Klaxon().parse<InstrumentsResponse>(responseString)
                 } catch (e: KlaxonException) {
-                    println(responseString)
+                    for (line in responseString.split("]")) {
+                        println(line)
+                    }
                     println(e)
+                    FILTERED_ITEMS.clear()
+                    FILTERED_ITEMS.addAll(ITEMS)
+                    ratesready.postValue("ready")
+                    privatePortfolio(preferences)
                     return
                 }
-                val instrumentFilter = preferences?.getString("allowed_ins", "")
-                val side = preferences?.getString("side", "")
+                val instrumentFilter = preferences.getString("allowed_ins", "")
+                val side = preferences.getString("side", "")
                 FILTERED_ITEMS.clear()
                 var is_allowed = true
-                for (i_ins in 0..(ITEMS.size - 1)) {
+                for (i_ins in 0 until ITEMS.size) {
                     val item = ITEMS[i_ins]
-                    if ( allowedInstruments != null ) {
+                    if (allowedInstruments != null) {
                         is_allowed = false
-                        for ( ins in allowedInstruments!!.instruments!! ) {
-                            if ( ins.displayName == item.instrument ) {
+                        for (ins in allowedInstruments!!.instruments!!) {
+                            if (ins.displayName == item.instrument) {
                                 is_allowed = true
                                 break
                             }
                         }
                     }
-                    if ( is_allowed != true ) {
+                    if (is_allowed != true) {
                         continue
                     }
                     if (side == "long") {
@@ -388,17 +497,20 @@ object RatesContent {
                         FILTERED_ITEMS.add(item)
                         continue
                     }
-                    if (item.instrument.contains(instrumentFilter!!)) {
+                    if (item.instrument.contains(instrumentFilter)) {
                         FILTERED_ITEMS.add(item)
                     }
                 }
-                lock.unlock()
-                isready.postValue("ready")
+                ratesready.postValue("ready")
+                privatePortfolio(preferences)
             }
         })
     }
 
     private fun addItem(item: RatesListItem) {
+        if (item.instrument == null) {
+            return
+        }
         if (ITEMS.contains(item).not()) {
             try {
                 ITEMS.removeAll { it.instrument == item.instrument }
@@ -407,7 +519,16 @@ object RatesContent {
                 ITEM_MAP[item.instrument] = item
             } catch (e: IndexOutOfBoundsException) {
                 println("Error while adding new rates item ${item.instrument}")
+                println(e)
             }
+        }
+    }
+
+    private fun addPortfolioItem(item: PortfolioListItem) {
+        if (PORTFOLIO_ITEMS.contains(item).not()) {
+            PORTFOLIO_ITEMS.removeAll { it.instrument == item.instrument }
+            PORTFOLIO_ITEMS.add(item)
+            PORTFOLIO_ITEM_MAP[item.instrument] = item
         }
     }
 }

@@ -63,7 +63,7 @@ class ratesFragment : LifecycleOwner, Fragment() {
                 val readyObserver = Observer<String> {_ ->
                     view.adapter!!.notifyDataSetChanged()
                 }
-                RatesContent.isready.observe(fragment, readyObserver)
+                RatesContent.ratesready.observe(fragment, readyObserver)
                 RatesContent.refresh(preferences)
             }
         }
