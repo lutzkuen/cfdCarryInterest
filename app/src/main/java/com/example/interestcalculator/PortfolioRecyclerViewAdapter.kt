@@ -54,7 +54,7 @@ class PortfolioRecyclerViewAdapter(
             holder.mIdView.text = item.instrument.padEnd(10)
             holder.mContentView.text = """
             Side: ${item.side}
-            Units: ${abs(item.units)}
+            Units: ${abs(item.units!!)}
             Interest: ${item.interest}
             ${item.recommend}
         """.trimIndent() }

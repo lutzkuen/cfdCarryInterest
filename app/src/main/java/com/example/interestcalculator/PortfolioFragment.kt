@@ -22,10 +22,10 @@ import com.example.interestcalculator.content.RatesContent
 
 class PortfolioListItem {
     var instrument: String = "N/A"
-    var units: Int = 0
-    var interest: Float = 0.toFloat()
-    var side: String = "N/A"
-    var recommend: String = "Hold"
+    var units: Int? = 0
+    var interest: Float? = 0.toFloat()
+    var side: String? = "N/A"
+    var recommend: String? = "Hold"
 }
 
 class PortfolioFragment : LifecycleOwner, Fragment() {

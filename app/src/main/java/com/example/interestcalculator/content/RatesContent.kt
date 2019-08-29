@@ -135,15 +135,15 @@ object RatesContent {
                     val newItem = PortfolioListItem()
                     newItem.instrument = posi.instrument.replace("_", "/")
                     newItem.units = posi.long.units.toInt() + posi.short.units.toInt()
-                    totalUnits += newItem.units
-                    if (newItem.units > 0) {
+                    totalUnits += newItem.units!!
+                    if (newItem.units!! > 0) {
                         newItem.side = "long"
                     } else {
                         newItem.side = "short"
                     }
                     newItem.interest =
-                        getInterest(posi.instrument.replace("_", "/"), newItem.units, duration!!.toFloat())
-                    totalInterest += newItem.interest
+                        getInterest(posi.instrument.replace("_", "/"), newItem.units!!, duration!!.toFloat())
+                    totalInterest += newItem.interest!!
                     orderedList.add(newItem)
                 }
                 orderedList.sortByDescending { it.interest }
@@ -151,17 +151,17 @@ object RatesContent {
                     val position = orderedList[i]
                     for (i_before in 0..i) {
                         val posBefore = orderedList[i_before]
-                        if (ITEM_MAP[posBefore.instrument]!!.interest < RatesContent.ITEM_MAP[position.instrument]!!.interest) {
+                        if (ITEM_MAP[posBefore.instrument]!!.interest!! < RatesContent.ITEM_MAP[position.instrument]!!.interest!!) {
                             position.recommend = "Increase Position"
                         }
                     }
                     for (i_after in i until orderedList.size) {
                         val posAfter = orderedList[i_after]
-                        if (ITEM_MAP[posAfter.instrument]!!.interest > RatesContent.ITEM_MAP[position.instrument]!!.interest) {
+                        if (ITEM_MAP[posAfter.instrument]!!.interest!! > RatesContent.ITEM_MAP[position.instrument]!!.interest!!) {
                             position.recommend = "Decrease Position"
                         }
                     }
-                    if (position.interest < 0) {
+                    if (position.interest!! < 0) {
                         position.recommend = "Close Position"
                     }
                     addPortfolioItem(position)
@@ -278,6 +278,9 @@ object RatesContent {
         }
         for (i_ins in 0..arrPairs.size) {
             val ins = arrPairs[i_ins]
+            if ( arrPairs[i_ins] == null ) {
+                continue
+            }
             if ((ins.indexOf(leading_currency) >= 0) and (ins.indexOf(accountCurrency) >= 0)) {
                 try {
                     val price = getPrice(ins)
@@ -474,7 +477,7 @@ object RatesContent {
                     if (allowedInstruments != null) {
                         is_allowed = false
                         for (ins in allowedInstruments!!.instruments!!) {
-                            if (ins.displayName == item.instrument) {
+                            if (ins.name!!.replace("_", "/") == item.instrument) {
                                 is_allowed = true
                                 break
                             }
@@ -493,12 +496,14 @@ object RatesContent {
                             continue
                         }
                     }
-                    if (instrumentFilter == null) {
-                        FILTERED_ITEMS.add(item)
-                        continue
-                    }
-                    if (item.instrument.contains(instrumentFilter)) {
-                        FILTERED_ITEMS.add(item)
+                    if ( FILTERED_ITEMS.contains(item).not() ) {
+                        if (instrumentFilter == null) {
+                            FILTERED_ITEMS.add(item)
+                            continue
+                        }
+                        if (item.instrument.contains(instrumentFilter)) {
+                            FILTERED_ITEMS.add(item)
+                        }
                     }
                 }
                 ratesready.postValue("ready")
@@ -509,6 +514,18 @@ object RatesContent {
 
     private fun addItem(item: RatesListItem) {
         if (item.instrument == null) {
+            return
+        }
+        if ( item.interest == null ) {
+            return
+        }
+        if ( item.price == null ) {
+            return
+        }
+        if ( item.side == null ) {
+            return
+        }
+        if ( item.units == null ) {
             return
         }
         if (ITEMS.contains(item).not()) {
