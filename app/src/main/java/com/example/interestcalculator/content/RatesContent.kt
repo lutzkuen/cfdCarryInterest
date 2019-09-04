@@ -11,6 +11,8 @@ import com.example.interestcalculator.PortfolioListItem
 import okhttp3.*
 import java.io.IOException
 import java.lang.Math.abs
+import java.time.LocalDateTime
+import java.time.LocalDateTime.now
 import java.util.concurrent.locks.ReentrantLock
 
 /**
@@ -86,21 +88,21 @@ object RatesContent {
     var portfolioready: MutableLiveData<String> = MutableLiveData<String>()
     private const val durationNormalization = 24.0 * 365.25
     private val lock = ReentrantLock()
+    private val items_lock = ReentrantLock()
+    private val portfolio_lock = ReentrantLock()
 
     init {
-        initArrays()
+        ratesready.value = "none"
+        portfolioready.value = "none"
     }
 
     fun refresh(preferences: SharedPreferences) {
         lock.lock()
-        try {
-            ratesready.value = "not"
-            portfolioready.value = "not"
-            initArrays()
-            getArrays(preferences)
-        } finally {
-            lock.unlock()
-        }
+        ratesready.value = "running"
+        portfolioready.value = "running"
+        initArrays()
+        getArrays(preferences)
+        lock.unlock()
     }
 
     private fun privatePortfolio(preferences: SharedPreferences) {
@@ -194,9 +196,6 @@ object RatesContent {
     }
 
     private fun getArrays(preferences: SharedPreferences) {
-        // Use next two lines for debugging in sequential mode
-        // val policy = StrictMode.ThreadPolicy.Builder().permitAll().build()
-        // StrictMode.setThreadPolicy(policy)
         val duration = preferences.getString("duration", "24")
         val urlString = "https://www1.oanda.com/tools/fxcalculators/fxmath.js"
         val request = Request.Builder()
@@ -226,23 +225,13 @@ object RatesContent {
             if (part.indexOf("arrPairs") > 0) {
                 val insArr = parseLine(part)
                 for (ins in insArr) {
-                    try {
-                        arrPairs.add(ins)
-                    } catch (e: ArrayIndexOutOfBoundsException) {
-                        println("Failed to load instrument ${ins}")
-                    }
+                    arrPairs.add(ins)
                 }
             }
             if (part.indexOf("arrRates") > 0) {
                 val insArr = parseLine(part)
                 for (ins in insArr) {
-                    try {
-                        arrRates.add(ins.toFloat())
-                    } catch (e: ArrayIndexOutOfBoundsException) {
-                        println(e)
-                    } finally {
-
-                    }
+                    arrRates.add(ins.toFloat())
                 }
             }
             if (part.indexOf("arrInterestCode") > 0) {
@@ -276,22 +265,22 @@ object RatesContent {
         if (leading_currency == accountCurrency) {
             return 1.0.toFloat()
         }
-        for (i_ins in 0..arrPairs.size) {
+        for (i_ins in 0 until arrPairs.size) {
             val ins = arrPairs[i_ins]
-            if ( arrPairs[i_ins] == null ) {
+            if (arrPairs[i_ins] == null) {
                 continue
             }
             if ((ins.indexOf(leading_currency) >= 0) and (ins.indexOf(accountCurrency) >= 0)) {
-                try {
-                    val price = getPrice(ins)
-                    if (ins.split("/")[0] == accountCurrency) {
-                        return price
-                    } else {
-                        return 1.0.toFloat() / price
-                    }
-                } catch (e: IllegalStateException) {
-                    println("Failed to get Price for ${ins}")
+                // try {
+                val price = getPrice(ins)
+                if (ins.split("/")[0] == accountCurrency) {
+                    return price
+                } else {
+                    return 1.0.toFloat() / price
                 }
+                /* } catch (e: IllegalStateException) {
+                    println("Failed to get Price for ${ins}")
+                } */
             }
         }
         val euroUSDollar = getPrice("EUR/USD")
@@ -309,14 +298,14 @@ object RatesContent {
     }
 
     fun getInterest(instrument: String, units: Int, duration: Float): Float {
-        lock.lock()
+        // lock.lock()
         var interest = 0.toFloat()
-        try {
-            interest = getInterestInternal(instrument, units, duration)
-        } finally {
-            lock.unlock()
-            return interest
-        }
+        // try {
+        interest = getInterestInternal(instrument, units, duration)
+        // } finally {
+        //    lock.unlock()
+        return interest
+        // }
     }
 
     private fun getInterestInternal(instrument: String, units: Int, duration: Float): Float {
@@ -365,7 +354,7 @@ object RatesContent {
         val prelimList = ArrayList<RatesListItem>()
         val duration = inputDuration / 8766.toFloat()
         for (i_ins in 0 until arrPairs.size) {
-            if ( arrPairs[i_ins] == null ) {
+            if (arrPairs[i_ins] == null) {
                 continue
             }
             val ins = arrPairs[i_ins]
@@ -390,6 +379,7 @@ object RatesContent {
                 continue
             }
             val price = arrRates[idx]
+            // println("$ins $price")
             val idxBase = arrInterestCode.indexOf(base)
             val idxQuote = arrInterestCode.indexOf(quote)
             var conversionBase: Float = getConversion(base)
@@ -496,7 +486,7 @@ object RatesContent {
                             continue
                         }
                     }
-                    if ( FILTERED_ITEMS.contains(item).not() ) {
+                    if (FILTERED_ITEMS.contains(item).not()) {
                         if (instrumentFilter == null) {
                             FILTERED_ITEMS.add(item)
                             continue
@@ -516,36 +506,43 @@ object RatesContent {
         if (item.instrument == null) {
             return
         }
-        if ( item.interest == null ) {
+        if (item.interest == null) {
             return
         }
-        if ( item.price == null ) {
+        if (item.price == null) {
             return
         }
-        if ( item.side == null ) {
+        if (item.side == null) {
             return
         }
-        if ( item.units == null ) {
+        if (item.units == null) {
             return
         }
+        items_lock.lock()
+        // try {
         if (ITEMS.contains(item).not()) {
-            try {
-                ITEMS.removeAll { it.instrument == item.instrument }
-                ITEMS.add(item)
-                // ITEM_MAP.remove(item.instrument)
-                ITEM_MAP[item.instrument] = item
-            } catch (e: IndexOutOfBoundsException) {
-                println("Error while adding new rates item ${item.instrument}")
-                println(e)
-            }
+            // try {
+            ITEMS.remove(ITEMS.find { it.instrument == item.instrument })
+            ITEMS.add(item)
+            // ITEM_MAP.remove(item.instrument)
+            ITEM_MAP[item.instrument] = item
+            /* } catch (e: IndexOutOfBoundsException) {
+            println("Error while adding new rates item ${item.instrument}")
+            println(e)
+        } */
         }
+        // } finally {
+        items_lock.unlock()
+        // }
     }
 
     private fun addPortfolioItem(item: PortfolioListItem) {
+        portfolio_lock.lock()
         if (PORTFOLIO_ITEMS.contains(item).not()) {
-            PORTFOLIO_ITEMS.removeAll { it.instrument == item.instrument }
+            PORTFOLIO_ITEMS.remove(PORTFOLIO_ITEMS.find( { it.instrument == item.instrument }))
             PORTFOLIO_ITEMS.add(item)
             PORTFOLIO_ITEM_MAP[item.instrument] = item
         }
+        portfolio_lock.unlock()
     }
 }

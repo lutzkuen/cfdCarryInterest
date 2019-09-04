@@ -61,10 +61,14 @@ class ratesFragment : LifecycleOwner, Fragment() {
                 val preferences = PreferenceManager.getDefaultSharedPreferences(context)
                 view.adapter = RatesRecyclerViewAdapter(RatesContent.FILTERED_ITEMS, listener, preferences)
                 val readyObserver = Observer<String> {_ ->
-                    view.adapter!!.notifyDataSetChanged()
+                        view.post({
+                            view.adapter!!.notifyDataSetChanged()
+                        })
                 }
                 RatesContent.ratesready.observe(fragment, readyObserver)
-                RatesContent.refresh(preferences)
+                if ( RatesContent.ratesready.value != "running" ) {
+                    RatesContent.refresh(preferences)
+                }
             }
         }
         return view
@@ -73,7 +77,9 @@ class ratesFragment : LifecycleOwner, Fragment() {
     override fun onResume() {
         super.onResume()
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-        RatesContent.refresh(preferences)
+        if ( RatesContent.ratesready.value != "running" ) {
+            RatesContent.refresh(preferences)
+        }
     }
 
     override fun onAttach(context: Context) {

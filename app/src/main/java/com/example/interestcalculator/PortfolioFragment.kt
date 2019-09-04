@@ -54,11 +54,15 @@ class PortfolioFragment : LifecycleOwner, Fragment() {
                 }
                 view.adapter = PortfolioRecyclerViewAdapter(RatesContent.PORTFOLIO_ITEMS, listener)
                 val readyObserver = Observer<String> { _ ->
-                    view.adapter!!.notifyDataSetChanged()
+                    view.post({
+                        view.adapter!!.notifyDataSetChanged()
+                    })
                 }
                 RatesContent.portfolioready.observe(fragment, readyObserver)
                 val preferences = PreferenceManager.getDefaultSharedPreferences(fragment.context)
-                RatesContent.refresh(preferences)
+                if ( RatesContent.ratesready.value != "running" ) {
+                    RatesContent.refresh(preferences)
+                }
             }
         }
         return view
@@ -67,7 +71,9 @@ class PortfolioFragment : LifecycleOwner, Fragment() {
     override fun onResume() {
         super.onResume()
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-        RatesContent.refresh(preferences)
+        if ( RatesContent.ratesready.value != "running" ) {
+            RatesContent.refresh(preferences)
+        }
     }
 
     override fun onAttach(context: Context) {

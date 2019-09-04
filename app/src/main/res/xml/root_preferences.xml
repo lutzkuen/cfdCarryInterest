@@ -60,7 +60,7 @@
         <EditTextPreference
                 app:key="allowed_ins"
                 app:title="@string/allowed_ins_title"
-                app:defaultValue="USD"
+                app:defaultValue=""
                 app:useSimpleSummaryProvider="true"/>
         <ListPreference
                 app:key="side"
