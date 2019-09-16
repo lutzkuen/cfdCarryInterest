@@ -76,10 +76,10 @@ class ratesFragment : LifecycleOwner, Fragment() {
 
     override fun onResume() {
         super.onResume()
-        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+        /* val preferences = PreferenceManager.getDefaultSharedPreferences(context)
         if ( RatesContent.ratesready.value != "running" ) {
             RatesContent.refresh(preferences)
-        }
+        } */
     }
 
     override fun onAttach(context: Context) {
