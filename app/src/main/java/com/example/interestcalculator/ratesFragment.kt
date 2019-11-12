@@ -59,16 +59,16 @@ class ratesFragment : LifecycleOwner, Fragment() {
                     else -> GridLayoutManager(context, columnCount)
                 }
                 val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-                view.adapter = RatesRecyclerViewAdapter(RatesContent.FILTERED_ITEMS, listener, preferences)
+                view.adapter = RatesRecyclerViewAdapter(RatesContent.ITEMS, listener, preferences)
                 val readyObserver = Observer<String> {_ ->
                         view.post({
                             view.adapter!!.notifyDataSetChanged()
                         })
                 }
                 RatesContent.ratesready.observe(fragment, readyObserver)
-                if ( RatesContent.ratesready.value != "running" ) {
-                    RatesContent.refresh(preferences)
-                }
+                // if ( RatesContent.ratesready.value != "running" ) {
+                //     RatesContent.refresh(preferences)
+                // }
             }
         }
         return view

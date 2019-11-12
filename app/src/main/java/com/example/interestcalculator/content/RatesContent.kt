@@ -46,6 +46,15 @@ class InstrumentsResponse(
     var instruments: List<Instrument>?
 )
 
+class PriceResponse(
+    var prices: List<ClientPrice>?
+)
+
+class ClientPrice(
+    var instrument: String,
+    var closeoutAsk: String,
+    var closeoutBid: String
+)
 
 class PositionSide(
     var pl: String,
@@ -80,7 +89,6 @@ object RatesContent {
     private var positions: PositionResponse? = null
     private val arrInterestLend = ArrayList<Float>()
     val ITEMS: MutableList<RatesListItem> = ArrayList<RatesListItem>()
-    val FILTERED_ITEMS: MutableList<RatesListItem> = ArrayList<RatesListItem>()
     val PORTFOLIO_ITEMS: MutableList<PortfolioListItem> = ArrayList()
     val PORTFOLIO_ITEM_MAP: MutableMap<String, PortfolioListItem> = HashMap()
     val ITEM_MAP: MutableMap<String, RatesListItem> = HashMap()
@@ -101,7 +109,7 @@ object RatesContent {
         ratesready.value = "running"
         portfolioready.value = "running"
         initArrays()
-        getArrays(preferences)
+        filter(preferences)
         lock.unlock()
     }
 
@@ -150,23 +158,28 @@ object RatesContent {
                 }
                 orderedList.sortByDescending { it.interest }
                 for (i in 0 until orderedList.size) {
-                    val position = orderedList[i]
-                    for (i_before in 0..i) {
-                        val posBefore = orderedList[i_before]
-                        if (ITEM_MAP[posBefore.instrument]!!.interest!! < RatesContent.ITEM_MAP[position.instrument]!!.interest!!) {
-                            position.recommend = "Increase Position"
+                    try {
+                        val position = orderedList[i]
+                        for (i_before in 0..i) {
+                            val posBefore = orderedList[i_before]
+                            if (ITEM_MAP[posBefore.instrument]!!.interest!! < RatesContent.ITEM_MAP[position.instrument]!!.interest!!) {
+                                position.recommend = "Increase Position"
+                            }
                         }
-                    }
-                    for (i_after in i until orderedList.size) {
-                        val posAfter = orderedList[i_after]
-                        if (ITEM_MAP[posAfter.instrument]!!.interest!! > RatesContent.ITEM_MAP[position.instrument]!!.interest!!) {
-                            position.recommend = "Decrease Position"
+                        for (i_after in i until orderedList.size) {
+                            val posAfter = orderedList[i_after]
+                            if (ITEM_MAP[posAfter.instrument]!!.interest!! > RatesContent.ITEM_MAP[position.instrument]!!.interest!!) {
+                                position.recommend = "Decrease Position"
+                            }
                         }
+                        if (position.interest!! < 0) {
+                            position.recommend = "Close Position"
+                        }
+                        addPortfolioItem(position)
                     }
-                    if (position.interest!! < 0) {
-                        position.recommend = "Close Position"
+                    catch (e: KotlinNullPointerException) {
+                        print(e)
                     }
-                    addPortfolioItem(position)
                 }
                 val summary = PortfolioListItem()
                 summary.instrument = "Total Interest"
@@ -206,8 +219,8 @@ object RatesContent {
             override fun onResponse(call: Call?, response: Response) {
                 val responseData = response.body()?.string()
                 parseFxmath(responseData!!)
+                // filter(preferences)
                 getRates(duration!!.toFloat())
-                filter(preferences)
             }
 
             override fun onFailure(call: Call?, e: IOException?) {
@@ -222,7 +235,7 @@ object RatesContent {
     fun parseFxmath(fxmath_text: String) {
         val parts = fxmath_text.split('\n')
         for (part in parts) {
-            if (part.indexOf("arrPairs") > 0) {
+            /*if (part.indexOf("arrPairs") > 0) {
                 val insArr = parseLine(part)
                 for (ins in insArr) {
                     arrPairs.add(ins)
@@ -231,9 +244,10 @@ object RatesContent {
             if (part.indexOf("arrRates") > 0) {
                 val insArr = parseLine(part)
                 for (ins in insArr) {
+                    println(part)
                     arrRates.add(ins.toFloat())
                 }
-            }
+            }*/
             if (part.indexOf("arrInterestCode") > 0) {
                 val insArr = parseLine(part)
                 for (ins in insArr) {
@@ -299,9 +313,8 @@ object RatesContent {
 
     fun getInterest(instrument: String, units: Int, duration: Float): Float {
         // lock.lock()
-        var interest = 0.toFloat()
         // try {
-        interest = getInterestInternal(instrument, units, duration)
+        val interest = getInterestInternal(instrument, units, duration)
         // } finally {
         //    lock.unlock()
         return interest
@@ -313,6 +326,9 @@ object RatesContent {
         val base = components[0]
         val quote = components[1]
         val idx = arrPairs.indexOf(instrument)
+        if ( idx >= arrRates.size || idx < 0 ) {
+            return 0.toFloat()
+        }
         val price = arrRates[idx]
         val idxBase = arrInterestCode.indexOf(base)
         val idxQuote = arrInterestCode.indexOf(quote)
@@ -384,8 +400,9 @@ object RatesContent {
             val idxQuote = arrInterestCode.indexOf(quote)
             var conversionBase: Float = getConversion(base)
             if (conversionBase <= 0) {
-                conversionBase = getConversion(quote)
-                conversionBase = price / conversionBase
+                continue
+                // conversionBase = getConversion(quote)
+                // conversionBase = price / conversionBase
             }
             var conversionQuote: Float = getConversion(quote)
             if (conversionQuote <= 0) {
@@ -424,9 +441,11 @@ object RatesContent {
             }
         }
         prelimList.sortByDescending({ it.interest })
+        ITEMS.clear()
         for (it in prelimList) {
             addItem(it)
         }
+        ratesready.postValue("ready")
     }
 
     fun filter(preferences: SharedPreferences) {
@@ -452,52 +471,53 @@ object RatesContent {
                         println(line)
                     }
                     println(e)
-                    FILTERED_ITEMS.clear()
-                    FILTERED_ITEMS.addAll(ITEMS)
                     ratesready.postValue("ready")
-                    privatePortfolio(preferences)
+                    // privatePortfolio(preferences)
                     return
                 }
                 val instrumentFilter = preferences.getString("allowed_ins", "")
                 val side = preferences.getString("side", "")
-                FILTERED_ITEMS.clear()
                 var is_allowed = true
-                for (i_ins in 0 until ITEMS.size) {
-                    val item = ITEMS[i_ins]
-                    if (allowedInstruments != null) {
-                        is_allowed = false
-                        for (ins in allowedInstruments!!.instruments!!) {
-                            if (ins.name!!.replace("_", "/") == item.instrument) {
-                                is_allowed = true
-                                break
-                            }
-                        }
-                    }
-                    if (is_allowed != true) {
-                        continue
-                    }
-                    if (side == "long") {
-                        if (item.side != "long") {
-                            continue
-                        }
-                    }
-                    if (side == "short") {
-                        if (item.side != "short") {
-                            continue
-                        }
-                    }
-                    if (FILTERED_ITEMS.contains(item).not()) {
-                        if (instrumentFilter == null) {
-                            FILTERED_ITEMS.add(item)
-                            continue
-                        }
-                        if (item.instrument.contains(instrumentFilter)) {
-                            FILTERED_ITEMS.add(item)
-                        }
+                var instrumentAgg = ""
+                for (ins in allowedInstruments!!.instruments!!) {
+                    if ( instrumentAgg == "" ) {
+                        instrumentAgg += ins.name!!
+                    } else {
+                        instrumentAgg += "%2C${ins.name}"
                     }
                 }
-                ratesready.postValue("ready")
-                privatePortfolio(preferences)
+
+                val priceUrlString = "https://$host/v3/accounts/$accountId/pricing?instruments=$instrumentAgg"
+                val price_request = Request.Builder()
+                    .url(priceUrlString)
+                    .addHeader("Content-Type", "application/json")
+                    .addHeader("Authorization", "Bearer ${accessToken}")
+                    .build()
+                // println(priceUrlString)
+                client.newCall(price_request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        val priceResponseString = response.body()!!.string()
+                        var pricesResponse: PriceResponse?
+                        try {
+                            pricesResponse = Klaxon().parse<PriceResponse>(priceResponseString)
+                        } catch (e: KlaxonException) {
+                            for (line in priceResponseString.split("]")) {
+                                println(line)
+                            }
+                            println(e)
+                            ratesready.postValue("ready")
+                            privatePortfolio(preferences)
+                            return
+                        }
+                        for ( price in pricesResponse!!.prices!! ) {
+                            arrPairs.add(price.instrument!!.replace("_", "/"))
+                            arrRates.add( ( price!!.closeoutAsk.toFloat() + price!!.closeoutBid.toFloat() ) / 2.toFloat() )
+                        }
+                        getArrays(preferences)
+                        privatePortfolio(preferences)
+                    }
+                })
             }
         })
     }
